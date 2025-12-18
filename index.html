@@ -1,0 +1,208 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Account Simulation</title>
+  <style>
+    :root{
+      --ink:#111827;--muted:#4b5563;--stone:#d6d3d1;--stone2:#e7e5e4;--paper:#f8f7f4;
+      --accent:#7c2d12;--error:#991b1b;--ok:#374151;--credit:#14532d;--debit:#7f1d1d
+    }
+    body{font-family:Georgia,"Times New Roman",serif;background:var(--paper);margin:0;padding:40px 20px;color:var(--ink)}
+    .container{max-width:980px;margin:0 auto}
+    header{border-bottom:3px solid var(--accent);margin-bottom:28px;padding-bottom:12px}
+    header h1{margin:0;font-size:1.8rem;letter-spacing:.02em}
+    header p{margin:6px 0 0;color:var(--muted)}
+    .card{background:#fff;border:1px solid var(--stone);padding:24px;margin-bottom:24px}
+    .card h2{margin:0 0 14px;border-bottom:1px solid var(--stone2);padding-bottom:8px;font-size:1.15rem}
+    .balance{font-size:2.4rem;font-weight:700;letter-spacing:.03em}
+    .meta{margin-top:8px;color:var(--muted);display:flex;gap:18px;flex-wrap:wrap}
+    .actions{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:14px;align-items:end}
+    label{display:block;font-size:.78rem;letter-spacing:.08em;text-transform:uppercase;margin-bottom:6px;color:#374151;font-weight:600}
+    input,select{width:100%;padding:10px;border:1px solid #a8a29e;background:#fafaf9;font-family:inherit}
+    button{padding:12px;border:1px solid var(--accent);background:var(--accent);color:#fff;font-weight:700;letter-spacing:.06em;text-transform:uppercase;cursor:pointer}
+    button.secondary{background:#fff;color:var(--accent)}
+    button.ghost{background:#fff;color:#374151;border:1px solid #a8a29e}
+    button:disabled{opacity:.5;cursor:not-allowed}
+    .msg{margin-top:12px;font-size:.9rem;min-height:1.2em}
+    .msg.error{color:var(--error)}
+    .msg.ok{color:var(--ok)}
+    table{width:100%;border-collapse:collapse;font-size:.95rem}
+    th{text-align:left;font-size:.75rem;letter-spacing:.08em;text-transform:uppercase;color:#57534e;border-bottom:2px solid var(--stone);padding-bottom:8px}
+    td{padding:12px 0;border-bottom:1px solid var(--stone2)}
+    .credit{color:var(--credit);font-weight:700}.debit{color:var(--debit);font-weight:700}
+    footer{margin-top:36px;font-size:.8rem;color:#57534e}
+    /* gate */
+    .gate{position:fixed;inset:0;background:rgba(248,247,244,.96);display:flex;align-items:center;justify-content:center;z-index:10}
+    .gate-card{max-width:560px;width:100%;background:#fff;border:1px solid var(--stone);padding:26px}
+    .gate-card h2{margin:0 0 8px;border-bottom:1px solid var(--stone2);padding-bottom:8px}
+    .hidden{display:none}
+    .fab{position:fixed;right:16px;bottom:16px;border-radius:999px;padding:10px 14px;background:#fff;color:var(--accent);border:1px solid var(--accent);font-weight:700;box-shadow:0 10px 25px rgba(0,0,0,.12)}
+    .row{display:flex;gap:10px;flex-wrap:wrap}
+  </style>
+</head>
+<body>
+
+<div class="gate" id="gate">
+  <div class="gate-card">
+    <input type="text" id="currencySearch" placeholder="Search currency…" style="width:100%;margin-bottom:10px;padding:10px;border:1px solid #a8a29e;font-family:inherit" oninput="filterCurrencies()" />
+    <h2>Welcome</h2>
+    <p class="muted">Enter a display name and select a reporting currency. You can change both later.</p>
+    <label for="displayName">Display name</label>
+    <input id="displayName" type="text" placeholder="e.g. Alex" style="width:100%;margin-bottom:10px;padding:10px;border:1px solid #a8a29e;font-family:inherit" />
+    <label>Currency</label>
+    <select id="gateCurrency"></select>
+    <div class="row" style="margin-top:14px">
+      <button onclick="applyCurrency()">Continue</button>
+    </div>
+    <div class="msg error" id="gateMsg"></div>
+  </div>
+</div>
+
+<div class="container hidden" id="app">
+  <header>
+    <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:12px;flex-wrap:wrap">
+      <div>
+        <h1 id="welcomeTitle">Account Balance Statement</h1>
+        <p class="notice">Demonstration interface. All timestamps use New York (Eastern Time).</p>
+      </div>
+      <button class="ghost" id="toggleNotices" onclick="toggleNotices()">Hide notices</button>
+    </div>
+  </header>
+
+  <div class="card">
+    <h2>Current Balance</h2>
+    <div class="balance" id="balance">$0.00</div>
+    <div class="meta">
+      <div><strong>Currency:</strong> <span id="ccyLabel"></span></div>
+      <div><strong>Time basis:</strong> New York City, NY, US</div>
+    </div>
+  </div>
+
+  <div class="card">
+    <h2>Account Operations</h2>
+    <div class="actions">
+      <div>
+        <label>Amount (<span id="amtCcy"></span>)</label>
+        <input id="amount" type="number" placeholder="0.00" />
+      </div>
+      <div>
+        <label>Type</label>
+        <select id="type"><option value="deposit">Credit</option><option value="withdraw">Debit</option></select>
+      </div>
+      <button id="submitBtn" onclick="tx()">Submit</button>
+      <button class="secondary" onclick="resetAcct()">Reset</button>
+    </div>
+    <div class="msg" id="msg"></div>
+  </div>
+
+  <div class="card">
+    <h2>Transaction Record</h2>
+    <div class="row" style="margin-bottom:8px">
+      <button class="ghost" onclick="exportCSV()">Export CSV</button>
+      <select id="filter" onchange="render()">
+        <option value="all">All</option>
+        <option value="today">Today</option>
+        <option value="month">This month</option>
+      </select>
+    </div>
+    <table>
+      <thead><tr><th>Date (NY)</th><th>Type</th><th>Amount</th><th>Balance</th></tr></thead>
+      <tbody id="rows"></tbody>
+    </table>
+  </div>
+
+  <footer class="notice">
+    Data is stored locally in your browser. This simulation is not affiliated with any financial institution.
+  </footer>
+</div>
+
+<button class="fab hidden" id="fab" onclick="openGate()"></button>
+
+<script>
+// --- State & persistence ---
+let state = JSON.parse(localStorage.getItem('bankSim')||'null') || {name:'',currency:null,balance:0,ledger:[]};
+const currencies=[
+ ['USD','🇺🇸 United States Dollar'],['EUR','🇪🇺 Euro'],['JPY','🇯🇵 Japanese Yen'],['GBP','🇬🇧 British Pound'],
+ ['AUD','🇦🇺 Australian Dollar'],['CAD','🇨🇦 Canadian Dollar'],['CHF','🇨🇭 Swiss Franc'],['CNY','🇨🇳 Chinese Yuan'],
+ ['HKD','🇭🇰 Hong Kong Dollar'],['NZD','🇳🇿 New Zealand Dollar'],['SEK','🇸🇪 Swedish Krona'],['KRW','🇰🇷 South Korean Won'],
+ ['SGD','🇸🇬 Singapore Dollar'],['NOK','🇳🇴 Norwegian Krone'],['MXN','🇲🇽 Mexican Peso'],['INR','🇮🇳 Indian Rupee'],
+ ['BRL','🇧🇷 Brazilian Real'],['ZAR','🇿🇦 South African Rand'],['TRY','🇹🇷 Turkish Lira'],['DKK','🇩🇰 Danish Krone'],
+ ['PLN','🇵🇱 Polish Złoty'],['THB','🇹🇭 Thai Baht'],['IDR','🇮🇩 Indonesian Rupiah'],['ILS','🇮🇱 Israeli Shekel'],
+ ['SAR','🇸🇦 Saudi Riyal'],['AED','🇦🇪 UAE Dirham'],['PHP','🇵🇭 Philippine Peso'],['VND','🇻🇳 Vietnamese Dong'],
+ ['EGP','🇪🇬 Egyptian Pound'],['KWD','🇰🇼 Kuwaiti Dinar'],['QAR','🇶🇦 Qatari Riyal'],['NGN','🇳🇬 Nigerian Naira'],
+ ['UAH','🇺🇦 Ukrainian Hryvnia'],['MAD','🇲🇦 Moroccan Dirham'],['PEN','🇵🇪 Peruvian Sol']
+];
+const gate=document.getElementById('gate'),app=document.getElementById('app');
+const gateSel=document.getElementById('gateCurrency');
+const balanceEl=document.getElementById('balance'),rows=document.getElementById('rows');
+const ccyLabel=document.getElementById('ccyLabel'),amtCcy=document.getElementById('amtCcy');
+const msg=document.getElementById('msg'),fab=document.getElementById('fab');
+
+currencies.forEach(([c,n])=>{const o=document.createElement('option');o.value=c;o.textContent=`${n} (${c})`;gateSel.appendChild(o);});
+
+function fmtMoney(n){return new Intl.NumberFormat(undefined,{style:'currency',currency:state.currency,minimumFractionDigits:state.currency==='JPY'?0:2}).format(n)}
+function ny(ts){return new Intl.DateTimeFormat('en-US',{timeZone:'America/New_York',year:'numeric',month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit'}).format(new Date(ts))}
+function save(){localStorage.setItem('bankSim',JSON.stringify(state))}
+
+function applyCurrency(){
+  const nameInput=document.getElementById('displayName').value.trim();
+  if(nameInput) state.name=nameInput;
+  if(!gateSel.value){return}
+  state.currency=gateSel.value;
+  save();
+  openApp();
+}
+function openGate(){
+  document.getElementById('displayName').value = state.name || '';
+  gateSel.value = state.currency || gateSel.value;
+  gate.classList.remove('hidden');
+}
+function openApp(){ gate.classList.add('hidden'); app.classList.remove('hidden'); fab.classList.remove('hidden'); render(); }
+
+function tx(){ const amt=Number(document.getElementById('amount').value); const type=document.getElementById('type').value; msg.className='msg'; msg.textContent='';
+  if(!isFinite(amt)||amt<=0){msg.classList.add('error');msg.textContent='Invalid amount.';return}
+  if(type==='withdraw'&&amt>state.balance){msg.classList.add('error');msg.textContent='Insufficient funds.';return}
+  state.balance += type==='deposit'?amt:-amt;
+  state.ledger.unshift({ts:Date.now(),type,amt,bal:state.balance}); save(); document.getElementById('amount').value=''; msg.classList.add('ok'); msg.textContent='Transaction recorded.'; render(); }
+
+function resetAcct(){ state.balance=0; state.ledger=[]; save(); msg.className='msg ok'; msg.textContent='Account reset.'; render(); }
+
+function render(){
+  const title=document.getElementById('welcomeTitle');
+  title.textContent = state.name ? `Welcome back, ${state.name}` : 'Account Balance Statement';
+ ccyLabel.textContent=state.currency; amtCcy.textContent=state.currency; balanceEl.textContent=fmtMoney(state.balance);
+  fab.textContent=fmtMoney(0).replace(/[0\d.,\s]/g,'')||state.currency;
+  const f=document.getElementById('filter').value; rows.innerHTML='';
+  const now=new Date();
+  state.ledger.filter(e=>{
+    const d=new Date(e.ts);
+    if(f==='today') return d.toDateString()===now.toDateString();
+    if(f==='month') return d.getMonth()===now.getMonth()&&d.getFullYear()===now.getFullYear();
+    return true;
+  }).forEach(e=>{
+    const tr=document.createElement('tr'); tr.innerHTML=`<td>${ny(e.ts)}</td><td>${e.type==='deposit'?'Credit':'Debit'}</td><td class="${e.type==='deposit'?'credit':'debit'}">${fmtMoney(e.amt)}</td><td>${fmtMoney(e.bal)}</td>`; rows.appendChild(tr); }); }
+
+function exportCSV(){ let csv='Date,Type,Amount,Balance\n'; state.ledger.forEach(e=>{csv+=`${ny(e.ts)},${e.type},${e.amt},${e.bal}\n`}); const a=document.createElement('a'); a.href=URL.createObjectURL(new Blob([csv],{type:'text/csv'})); a.download='statement.csv'; a.click(); }
+
+function toggleNotices(){
+      document.querySelectorAll('.notice').forEach(n=>{
+        n.style.display = n.style.display === 'none' ? '' : 'none';
+      });
+      const btn=document.getElementById('toggleNotices');
+      btn.textContent = btn.textContent.includes('Hide') ? 'Show notices' : 'Hide notices';
+    }
+
+    function filterCurrencies(){
+      const q=document.getElementById('currencySearch').value.toLowerCase();
+      Array.from(gateSel.options).forEach(o=>{
+        o.style.display = o.text.toLowerCase().includes(q) ? '' : 'none';
+      });
+    }
+
+// init
+if(state.currency){ openApp(); } else { gate.classList.remove('hidden'); }
+</script>
+</body>
+</html>
